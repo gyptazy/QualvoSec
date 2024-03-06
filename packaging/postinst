@@ -1,0 +1,4 @@
+#!/bin/bash
+useradd -m qualvosec
+chown qualvosec:qualvosec /etc/qualvosec/qualvosec.conf
+systemctl daemon-reload

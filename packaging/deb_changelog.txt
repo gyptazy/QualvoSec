@@ -1,3 +1,9 @@
+qualvosec (1.0.2) unstable; urgency=low
+
+  * Added custom user agent including FQDN of the client system.
+
+ -- Florian Paul Azim Hoberg <gyptazy@gyptazy.ch>  Thu, 07 Mar 2024 05:38:41 -0200
+
 qualvosec (1.0.1) unstable; urgency=low
 
   * Added http health endpoint as a monitoring interface.

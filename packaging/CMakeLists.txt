@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(QualvoSec VERSION 1.0.1)
+project(QualvoSec VERSION 1.0.2)
 
 install(PROGRAMS ../src/client/qualvosec DESTINATION /sbin)
 install(FILES ../src/client/qualvosec.conf DESTINATION /etc/qualvosec)

@@ -45,7 +45,7 @@ except ImportError as error:
 
 # Constants
 __appname__ = "QualvoSec"
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 __author__  = "Florian Paul Azim Hoberg <gyptazy@gyptazy.ch> @gyptazy"
 
 
@@ -137,9 +137,14 @@ def initialize_monitoring():
     httpd.serve_forever()
 
 
-def fetch_qualvosec_manifest(server, qualvosec_manifest_path):
+def fetch_qualvosec_manifest(server, qualvosec_manifest_path, system_fqdn):
     """ Fetch the QualvoSec manifest from the remote server. """
+    # Customize urllib opener.
+    opener = urllib.request.build_opener()
+    opener.addheaders = [('User-agent', f'{__appname__} {__version__} {system_fqdn}')]
+
     # Grab the initial QualvoSec manifest file once.
+    urllib.request.install_opener(opener)
     if qualvosec_manifest_path is None:
         logging.info(f'Info: Trying to fetch manifest from {server}.')
         try:
@@ -326,9 +331,9 @@ def main():
         threading.Thread(target=initialize_monitoring, name="monitoring").start()
 
     while True:
-        qualvosec_manifest_path = fetch_qualvosec_manifest(server, qualvosec_manifest_path)
-        qualvosec_manifest = read_qualvosec_manifest(qualvosec_manifest_path[0])
         system_fqdn = get_system_fqdn()
+        qualvosec_manifest_path = fetch_qualvosec_manifest(server, qualvosec_manifest_path, system_fqdn)
+        qualvosec_manifest = read_qualvosec_manifest(qualvosec_manifest_path[0])
         patch_system(system_fqdn, qualvosec_manifest)
         # Recheck after 50 seconds
         time.sleep(float(50))

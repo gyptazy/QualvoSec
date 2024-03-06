@@ -1,1 +1,5 @@
 qualvosec ALL=(root) NOPASSWD: /usr/sbin/qualvosec
+qualvosec ALL=(root) NOPASSWD: /usr/sbin/reboot
+qualvosec ALL=(root) NOPASSWD: /usr/bin/apt-get
+qualvosec ALL=(root) NOPASSWD: /usr/bin/yum
+qualvosec ALL=(root) NOPASSWD: /usr/bin/pkg

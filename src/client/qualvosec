@@ -234,19 +234,19 @@ def _execute_patch_system(system_os_pkg_mgmr, system_fqdn):
     """ Execute patching the system. """
     if system_os_pkg_mgmr == '/bin/apt':
         logging.info(f'Info: Using apt-get for patching.')
-        process = subprocess.Popen(['apt-get', '-y', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        process = subprocess.Popen(['sudo', 'apt-get', '-y', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
 
     if system_os_pkg_mgmr == '/bin/rpm':
         logging.info(f'Info: Using yum for patching.')
-        process = subprocess.Popen(['yum', '-y', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        process = subprocess.Popen(['sudo', 'yum', '-y', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
 
     if system_os_pkg_mgmr == '/bin/pkg':
         logging.info(f'Info: Using pkg for patching.')
-        process = subprocess.Popen(['pkg', '-y', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        process = subprocess.Popen(['sudo', 'pkg', '-y', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
 
     if system_os_pkg_mgmr == '/opt/homebrew/bin/brew':
         logging.info(f'Info: Using homebrew for patching.')
-        process = subprocess.Popen(['uname', '-a'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        process = subprocess.Popen(['sudo', 'brew', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
  
     process_output, process_error = process.communicate()
     exit_code = process.wait()
@@ -268,7 +268,7 @@ def _validate_system_reboot(system_fqdn, qualvosec_manifest):
 
 def _execute_reboot_system(system_fqdn):
     """ Reboot the system after security patching by QualvoSec. """
-    process = subprocess.Popen(['reboot'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+    process = subprocess.Popen(['sudo', 'reboot'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
     process_output, process_error = process.communicate()
     exit_code = process.wait()
     if exit_code != 0:

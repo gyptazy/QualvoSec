@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # QualvoSec
-# QualvoSec is a minimal security patch management tool for unattended
+# QualvoSec is a minimalistic security patch management tool for unattended
 # upgrades on Linux and BSD based systems that are obtaining their packages
 # from a distribution based repository.
 # Copyright (C) 2023 Florian Paul Azim Hoberg @gyptazy <gyptazy@gyptazy.ch>
@@ -28,16 +28,28 @@ import socket
 import subprocess
 import sys
 import time
-import yaml
+import threading
+import urllib
+try:
+    import yaml
+except ImportError as error:
+        logging.critical('QualvoSec: Can not start QualvoSec. Missing Python module: yaml')
+        sys.exit(2)
 from urllib.request import urlretrieve
+try:
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+except ImportError as error:
+    logging.critical('QualvoSec: Can not start monitoring endpoint. Missing Python module: http')
+    sys.exit(2)
 
 
 # Constants
 __appname__ = "QualvoSec"
-__version__ = "1.0.0"
-__author__ = "Florian Paul Azim Hoberg <gyptazy@gyptazy.ch> @gyptazy"
+__version__ = "1.0.1"
+__author__  = "Florian Paul Azim Hoberg <gyptazy@gyptazy.ch> @gyptazy"
 
 
+## Classes
 # Logging class
 class SystemdHandler(logging.Handler):
     """ Class to handle logging options. """
@@ -62,7 +74,16 @@ class SystemdHandler(logging.Handler):
         except Exception:
             self.handleError(record)
 
+# Monitoring class
+class MonitoringHandler(BaseHTTPRequestHandler):
+    """ Class to respond for monitoring requests on QualvoSec. """
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b'healthy=true')
 
+
+## Functions
 def initialize_args():
     """ Initialize given arguments for QualvoSec. """
     argparser = argparse.ArgumentParser(description='QualvoSec')
@@ -85,6 +106,8 @@ def initialize_config_options(config_path):
         config = configparser.ConfigParser()
         config.read(config_path)
         server = config['general']['server']
+        monitoring = config['general']['monitoring']
+        monitoring_port = config['general']['monitoring_port']
         log_level = config['general']['log_level']
         log_handler = config['general']['log_handler']
     except configparser.NoSectionError:
@@ -96,7 +119,7 @@ def initialize_config_options(config_path):
     except KeyError:
         logging.critical('Error parsing config file: Key/Value not found.')
         sys.exit(2)
-    return server, log_level, log_handler
+    return server, log_level, log_handler, monitoring, monitoring_port
 
 
 def initialize_logger(log_level, log_handler):
@@ -104,25 +127,45 @@ def initialize_logger(log_level, log_handler):
     root_logger = logging.getLogger()
     root_logger.setLevel(log_level)
     root_logger.addHandler(SystemdHandler())
+    logging.info(f'Info: Logger initialized.')
+
+
+def initialize_monitoring():
+    """ Initialize monitoring status endpoint. """
+    logging.info(f'Info: Initializing monitoring endpoint on port tcp/{monitoring_port}.')
+    httpd = HTTPServer(('localhost', int(monitoring_port)), MonitoringHandler)
+    httpd.serve_forever()
 
 
 def fetch_qualvosec_manifest(server, qualvosec_manifest_path):
     """ Fetch the QualvoSec manifest from the remote server. """
     # Grab the initial QualvoSec manifest file once.
     if qualvosec_manifest_path is None:
-        return urlretrieve(f'{server}/patch.yaml')
+        logging.info(f'Info: Trying to fetch manifest from {server}.')
+        try:
+            return urlretrieve(f'{server}/patch.yaml')
+        except urllib.error.URLError:
+            logging.critical(f'Error while fetching the manifest from {server}.')
+            sys.exit(2)
     # Validate the file age for caching. Cache it during the runtime
     # and update the content every 6 hours.
     else:
         manifest_file_age = _get_file_age_time(qualvosec_manifest_path[0])
         if int(manifest_file_age) > 360:
-            return urlretrieve(f'{server}/patch.yaml')
+            logging.info(f'Info: Trying to fetch manifest from {server}.')
+            try:
+                return urlretrieve(f'{server}/patch.yaml')
+            except urllib.error.URLError:
+                logging.critical(f'Error while fetching the manifest from {server}.')
+                sys.exit(2)
         else:
+            logging.info(f'Info: Cached manifest from {server} used.')
             return qualvosec_manifest_path
 
 
 def read_qualvosec_manifest(qualvosec_manifest_path):
     """ Read the QualvoSec patch manifest. """
+    logging.info(f'Info: Reading manifest file from {qualvosec_manifest_path}')
     with open(qualvosec_manifest_path, 'r') as test:
         qualvosec_manifest = yaml.safe_load(test)
     return qualvosec_manifest
@@ -130,21 +173,25 @@ def read_qualvosec_manifest(qualvosec_manifest_path):
 
 def get_system_fqdn():
     """ Get the system's local fqdn. """
+    logging.info(f'Info: Getting system fqdn.')
     return socket.getfqdn()
 
 
 def _get_file_age_time(file_name):
     """ Get the file age time of a given file. """
+    logging.info(f'Info: Getting file age time.')
     return time.time() - os.path.getmtime(file_name)
 
 
 def _get_time_information_now():
     """ Get the current local time information. """
+    logging.info(f'Info: Getting current time information.')
     return datetime.datetime.now().weekday(), datetime.datetime.now().hour, datetime.datetime.now().minute
 
 
 def _get_time_information_patch(system_fqdn, qualvosec_manifest):
     """ Get the time information from QualvoSec manifest. """
+    logging.info(f'Info: Getting manifest time information.')
     return qualvosec_manifest[system_fqdn]['weekday'], qualvosec_manifest[system_fqdn]['hour'], qualvosec_manifest[system_fqdn]['minute']
 
 
@@ -186,15 +233,19 @@ def _validate_systems_patch_window(qualvosec_times, system_fqdn):
 def _execute_patch_system(system_os_pkg_mgmr, system_fqdn):
     """ Execute patching the system. """
     if system_os_pkg_mgmr == '/bin/apt':
+        logging.info(f'Info: Using apt-get for patching.')
         process = subprocess.Popen(['apt-get', '-y', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
 
     if system_os_pkg_mgmr == '/bin/rpm':
+        logging.info(f'Info: Using yum for patching.')
         process = subprocess.Popen(['yum', '-y', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
 
     if system_os_pkg_mgmr == '/bin/pkg':
+        logging.info(f'Info: Using pkg for patching.')
         process = subprocess.Popen(['pkg', '-y', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
 
     if system_os_pkg_mgmr == '/opt/homebrew/bin/brew':
+        logging.info(f'Info: Using homebrew for patching.')
         process = subprocess.Popen(['uname', '-a'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
  
     process_output, process_error = process.communicate()
@@ -252,7 +303,7 @@ def patch_system(system_fqdn, qualvosec_manifest):
 
     # Check for patch window.
     execute_patching = _validate_systems_patch_window(qualvosec_times, system_fqdn)
-    logging.info(f'Info: The system {system_fqdn} is state execute_patching: {execute_patching}')
+    logging.info(f'Info: The system {system_fqdn} is in state execute_patching: {execute_patching}')
 
     # Execute patching.
     if execute_patching:
@@ -264,18 +315,22 @@ def patch_system(system_fqdn, qualvosec_manifest):
 
 
 def main():
-    """ Run QualvoSec """
+    """ Run QualvoSec - A minimalistic security patch management tool. """
     qualvosec_manifest_path = None
+    global monitoring_port
     app_args = initialize_args()
     config_path = initialize_config_path(app_args)
-    server, log_level, log_handler = initialize_config_options(config_path)
+    server, log_level, log_handler, monitoring, monitoring_port = initialize_config_options(config_path)
     initialize_logger(log_level, log_handler)
+    if monitoring:
+        threading.Thread(target=initialize_monitoring, name="monitoring").start()
 
     while True:
         qualvosec_manifest_path = fetch_qualvosec_manifest(server, qualvosec_manifest_path)
         qualvosec_manifest = read_qualvosec_manifest(qualvosec_manifest_path[0])
         system_fqdn = get_system_fqdn()
         patch_system(system_fqdn, qualvosec_manifest)
+        # Recheck after 50 seconds
         time.sleep(float(50))
 
 

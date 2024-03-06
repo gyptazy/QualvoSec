@@ -29,7 +29,7 @@
   * Author(s)
 
 ## General
-`QualvoSec` is a minimal security patch management tools (security patch framework) for unattended upgrades on Linux and BSD based systems that are obtaining their packages from a distribution based repository. It is written for minimal setups where solutions like Spacewalk or Landscape would be too bloated. QualvoSec supports Debian (e.g. Ubuntu, GardenLinux, etc.) and RedHat (CentOS, Fedora, RockyLinux, etc.) based Distributions but also BSD (e.g. FreeBSD, OpenBSD, macOS, etc.).
+`QualvoSec` is a minimalistic security patch management tools (security patch framework) for unattended upgrades on Linux and BSD based systems that are obtaining their packages from a distribution based repository. It is written in Python for minimal setups where solutions like Spacewalk or Landscape would be too bloated. QualvoSec supports Debian (e.g. Ubuntu, GardenLinux, etc.) and RedHat (CentOS, Fedora, RockyLinux, etc.) based Distributions but also BSD (e.g. FreeBSD, OpenBSD, macOS, etc.).
 
 ## Structure
 ### General
@@ -56,9 +56,25 @@ The following options can be set in the `qualvosec.conf` file:
 | Option | Type | Description | 
 |------|:------:|:------:|
 | server | String | Defines the remote server instance hosting the manifest file. |
+| monitoring | Bool | Defines to activate the monitoring interface. |
+| monitoring_port | Integer | Defines the port of the monitoring interface (Default: 8037). |
 | log_level | String | Defines the log level (Default: CRITICAL). |
 | log_handler | String | Defines the log handler (Default: SystemdHandler). |
 
+#### Monitoring Interface
+To validate that the service is up and running a monitoring interface including a health endpoint can be activated (see also chapter Options). By default, the endpoint listens on tcp/8037 (can be adjusted) and can be checked with
+any http conform client (e.g. GypMon, Icinga2, etc.).
+
+Example:
+
+```
+$> curl localhost:8037
+healthy=true
+```
+
+Currently, the endpoint will only report the following states for type `healthy`:
+* true
+* false
 
 ### Server
 On the root path of the defined domain, a `patch.yaml` file (manifest) must be placed. This static file contains all further information of the clients that consume the file periodically. An example file is given below:
@@ -135,14 +151,16 @@ QualvoSec is fully written in Python and just needs the basic modules to run. Pl
   * argparse
   * configparser
   * datetime
+  * http
   * logging
   * os
   * socket
   * subprocess
   * sys
   * time
-  * yaml
   * urllib
+  * yaml
+
 
 When running on Linux systems with `systemd` you should also make sure to have `sudo` installed and to use the sudo-droplet.
 

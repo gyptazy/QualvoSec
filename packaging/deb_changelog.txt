@@ -1,3 +1,9 @@
+qualvosec (1.0.1) unstable; urgency=low
+
+  * Added http health endpoint as a monitoring interface.
+
+ -- Florian Paul Azim Hoberg <gyptazy@gyptazy.ch>  Wed, 06 Mar 2024 08:12:14 -0200
+
 qualvosec (1.0.0) unstable; urgency=low
 
   * Initial release of QualvoSec.

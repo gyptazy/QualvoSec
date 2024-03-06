@@ -237,6 +237,8 @@ def _validate_systems_patch_window(qualvosec_times, system_fqdn):
 
 def _execute_patch_system(system_os_pkg_mgmr, system_fqdn):
     """ Execute patching the system. """
+    system_os_pkg_mgmr = None
+
     if system_os_pkg_mgmr == '/bin/apt':
         logging.info(f'Info: Using apt-get for patching.')
         process = subprocess.Popen(['sudo', 'apt-get', '-y', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
@@ -253,6 +255,10 @@ def _execute_patch_system(system_os_pkg_mgmr, system_fqdn):
         logging.info(f'Info: Using homebrew for patching.')
         process = subprocess.Popen(['sudo', 'brew', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
  
+    if not system_os_pkg_mgmr:
+        logging.critical(f'Error: Unable to find a package manager.')
+        sys.exit(2)
+
     process_output, process_error = process.communicate()
     exit_code = process.wait()
 

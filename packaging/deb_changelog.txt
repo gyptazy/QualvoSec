@@ -1,0 +1,5 @@
+qualvosec (1.0.0) unstable; urgency=low
+
+  * Initial release of QualvoSec.
+
+ -- Florian Paul Azim Hoberg <gyptazy@gyptazy.ch>  Wed, 06 Mar 2024 01:32:12 -0200

@@ -1,0 +1,283 @@
+#!/usr/bin/env python3
+
+# QualvoSec
+# QualvoSec is a minimal security patch management tool for unattended
+# upgrades on Linux and BSD based systems that are obtaining their packages
+# from a distribution based repository.
+# Copyright (C) 2023 Florian Paul Azim Hoberg @gyptazy <gyptazy@gyptazy.ch>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import argparse
+import configparser
+import datetime
+import logging
+import os
+import socket
+import subprocess
+import sys
+import time
+import yaml
+from urllib.request import urlretrieve
+
+
+# Constants
+__appname__ = "QualvoSec"
+__version__ = "1.0.0"
+__author__ = "Florian Paul Azim Hoberg <gyptazy@gyptazy.ch> @gyptazy"
+
+
+# Logging class
+class SystemdHandler(logging.Handler):
+    """ Class to handle logging options. """
+    PREFIX = {
+        logging.CRITICAL: "<2> " + __appname__ + ": ",
+        logging.ERROR: "<3> " + __appname__ + ": ",
+        logging.WARNING: "<4> " + __appname__ + ": ",
+        logging.INFO: "<6> " + __appname__ + ": ",
+        logging.DEBUG: "<7> " + __appname__ + ": ",
+        logging.NOTSET: "<7 " + __appname__ + ": ",
+    }
+
+    def __init__(self, stream=sys.stdout):
+        self.stream = stream
+        logging.Handler.__init__(self)
+
+    def emit(self, record):
+        try:
+            msg = self.PREFIX[record.levelno] + self.format(record) + "\n"
+            self.stream.write(msg)
+            self.stream.flush()
+        except Exception:
+            self.handleError(record)
+
+
+def initialize_args():
+    """ Initialize given arguments for QualvoSec. """
+    argparser = argparse.ArgumentParser(description='QualvoSec')
+    argparser.add_argument('-c', '--config', type=str, help='Path to config file.')
+    return argparser.parse_args()
+
+
+def initialize_config_path(app_args):
+    """ Initialize path to config file. """
+    config_path = app_args.config
+    if app_args.config is None:
+        # Try to fallback on distribution default path.
+        config_path = '/etc/qualvosec/qualvosec.conf'
+    return config_path
+
+
+def initialize_config_options(config_path):
+    """ Read configuration from given config file for QualvoSec. """
+    try:
+        config = configparser.ConfigParser()
+        config.read(config_path)
+        server = config['general']['server']
+        log_level = config['general']['log_level']
+        log_handler = config['general']['log_handler']
+    except configparser.NoSectionError:
+        logging.critical('Error parsing config file: Section not found.')
+        sys.exit(2)
+    except configparser.ParsingError:
+        logging.critical('Error parsing config file: Impossible to parse file.')
+        sys.exit(2)
+    except KeyError:
+        logging.critical('Error parsing config file: Key/Value not found.')
+        sys.exit(2)
+    return server, log_level, log_handler
+
+
+def initialize_logger(log_level, log_handler):
+    """ Initialize desired logging handler. """
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
+    root_logger.addHandler(SystemdHandler())
+
+
+def fetch_qualvosec_manifest(server, qualvosec_manifest_path):
+    """ Fetch the QualvoSec manifest from the remote server. """
+    # Grab the initial QualvoSec manifest file once.
+    if qualvosec_manifest_path is None:
+        return urlretrieve(f'{server}/patch.yaml')
+    # Validate the file age for caching. Cache it during the runtime
+    # and update the content every 6 hours.
+    else:
+        manifest_file_age = _get_file_age_time(qualvosec_manifest_path[0])
+        if int(manifest_file_age) > 360:
+            return urlretrieve(f'{server}/patch.yaml')
+        else:
+            return qualvosec_manifest_path
+
+
+def read_qualvosec_manifest(qualvosec_manifest_path):
+    """ Read the QualvoSec patch manifest. """
+    with open(qualvosec_manifest_path, 'r') as test:
+        qualvosec_manifest = yaml.safe_load(test)
+    return qualvosec_manifest
+
+
+def get_system_fqdn():
+    """ Get the system's local fqdn. """
+    return socket.getfqdn()
+
+
+def _get_file_age_time(file_name):
+    """ Get the file age time of a given file. """
+    return time.time() - os.path.getmtime(file_name)
+
+
+def _get_time_information_now():
+    """ Get the current local time information. """
+    return datetime.datetime.now().weekday(), datetime.datetime.now().hour, datetime.datetime.now().minute
+
+
+def _get_time_information_patch(system_fqdn, qualvosec_manifest):
+    """ Get the time information from QualvoSec manifest. """
+    return qualvosec_manifest[system_fqdn]['weekday'], qualvosec_manifest[system_fqdn]['hour'], qualvosec_manifest[system_fqdn]['minute']
+
+
+def _get_system_os_pkg_mgr(system_fqdn):
+    """ Get the system's operating system package manager. """
+    system_os = None
+    system_os_debian  = '/bin/apt'
+    system_os_redhat  = '/bin/rpm'
+    system_os_freebsd = '/bin/pkg'
+    system_os_macos   = '/opt/homebrew/bin/brew'
+    supported_system_os = [system_os_debian, system_os_redhat, system_os_freebsd, system_os_macos]
+
+    for supported_os in supported_system_os:
+        if os.path.exists(supported_os):
+            system_os = supported_os
+    
+    if system_os is None:
+            logging.critical(f'Error: The Operating System for {system_fqdn} could not be evaluated.')
+            sys.exit(2)
+
+    logging.info(f'Info: The Operating System for {system_fqdn} got evaluated and will use {system_os} for security patching.')
+    return system_os
+
+
+def _validate_systems_patch_window(qualvosec_times, system_fqdn):
+    """ Validate if the system is in the patch window. """
+    execute_patching = True
+    for time_now, time_patch in qualvosec_times.items():
+        if time_now != time_patch:
+            execute_patching = False
+
+    if not execute_patching:
+        logging.info(f'Info: The system {system_fqdn} has not yet reached the security patch window.')
+    else:
+        logging.info(f'Info: The system {system_fqdn} has reached the security patch window and will be patched.')
+    return execute_patching
+
+
+def _execute_patch_system(system_os_pkg_mgmr, system_fqdn):
+    """ Execute patching the system. """
+    if system_os_pkg_mgmr == '/bin/apt':
+        process = subprocess.Popen(['apt-get', '-y', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+
+    if system_os_pkg_mgmr == '/bin/rpm':
+        process = subprocess.Popen(['yum', '-y', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+
+    if system_os_pkg_mgmr == '/bin/pkg':
+        process = subprocess.Popen(['pkg', '-y', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+
+    if system_os_pkg_mgmr == '/opt/homebrew/bin/brew':
+        process = subprocess.Popen(['uname', '-a'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+ 
+    process_output, process_error = process.communicate()
+    exit_code = process.wait()
+
+    if exit_code != 0:
+        logging.critical(f'Error The system {system_fqdn} could not be patched.')
+        logging.critical(f'Log: {process_error}')
+        sys.exit(2)
+    else:
+        logging.critical(f'Info: The system {system_fqdn} got successfully patched.')
+        logging.info(f'Log: {process_output}')
+
+
+def _validate_system_reboot(system_fqdn, qualvosec_manifest):
+    """ Validate is system should be rebooted after security patching by QualvoSec. """
+    if qualvosec_manifest[system_fqdn].get('reboot'):
+        return True
+
+
+def _execute_reboot_system(system_fqdn):
+    """ Reboot the system after security patching by QualvoSec. """
+    process = subprocess.Popen(['reboot'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+    process_output, process_error = process.communicate()
+    exit_code = process.wait()
+    if exit_code != 0:
+        logging.critical(f'Error The system {system_fqdn} could not be rebooted.')
+        logging.critical(f'Log: {process_error}')
+        sys.exit(2)
+    else:
+        logging.critical(f'Info: The system {system_fqdn} will be rebooted now.')
+        logging.info(f'Log: {process_output}')
+
+
+def patch_system(system_fqdn, qualvosec_manifest):
+    """ Run the basic patch routine to integrate security fixes by QualvoSec. """
+    # Validate that the system is present in the manifest.
+    if not qualvosec_manifest.get(system_fqdn):
+        logging.critical(f'Error: The system {system_fqdn} could not be found in the QualvoSec manifest.')
+        sys.exit(2)
+
+    # Validate that the system should be patched.
+    if not qualvosec_manifest[system_fqdn].get('patch'):
+        logging.warning(f'Warning: The system {system_fqdn} is not activated for security patching.')
+        sys.exit(1)
+    
+    # Compare time slots for a matching time window.
+    qualvosec_times = {}
+    weekday_now,   hour_now,   minute_now   = _get_time_information_now()
+    weekday_patch, hour_patch, minute_patch = _get_time_information_patch(system_fqdn, qualvosec_manifest)
+    
+    qualvosec_times[weekday_now] = weekday_patch
+    qualvosec_times[hour_now]    = hour_patch
+    qualvosec_times[minute_now]  = minute_patch
+
+    # Check for patch window.
+    execute_patching = _validate_systems_patch_window(qualvosec_times, system_fqdn)
+    logging.info(f'Info: The system {system_fqdn} is state execute_patching: {execute_patching}')
+
+    # Execute patching.
+    if execute_patching:
+        system_os_pkg_mgmr = _get_system_os_pkg_mgr(system_fqdn)
+        _execute_patch_system(system_os_pkg_mgmr, system_fqdn)
+        system_reboot_state = _validate_system_reboot(system_fqdn, qualvosec_manifest)
+        if system_reboot_state:
+            _execute_reboot_system(system_fqdn)
+
+
+def main():
+    """ Run QualvoSec """
+    qualvosec_manifest_path = None
+    app_args = initialize_args()
+    config_path = initialize_config_path(app_args)
+    server, log_level, log_handler = initialize_config_options(config_path)
+    initialize_logger(log_level, log_handler)
+
+    while True:
+        qualvosec_manifest_path = fetch_qualvosec_manifest(server, qualvosec_manifest_path)
+        qualvosec_manifest = read_qualvosec_manifest(qualvosec_manifest_path[0])
+        system_fqdn = get_system_fqdn()
+        patch_system(system_fqdn, qualvosec_manifest)
+        time.sleep(float(50))
+
+
+if __name__ == '__main__':
+    main()

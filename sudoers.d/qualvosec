@@ -1,0 +1,1 @@
+qualvosec ALL=(root) NOPASSWD: /usr/sbin/qualvosec

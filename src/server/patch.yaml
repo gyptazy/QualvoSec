@@ -1,0 +1,12 @@
+hypervisor01.gyptazy.ch:
+  patch: true
+  reboot: true
+  weekday: 1
+  hour: 23
+  minute: 30
+# hypervisor02.gyptazy.ch:		# Defines the remote FQDN of the client system.
+#  patch: true				# Defines to patch the system in general.
+#  reboot: true				# Defines to reboot the system after installing the updates.
+#  weekday: 2				# Weekday where the patches should be installed (Starting with 0 for Monday).
+#  hour: 3				# Hours where the patches should be installed.
+#  minute: 15				# Minute where the patches should be installed.

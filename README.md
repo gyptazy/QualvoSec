@@ -23,6 +23,7 @@
   * Supported Systems
   * Dependencies
 * Motivation
+* Packages
 * Misc
   * Bugs
   * Contributing
@@ -172,6 +173,32 @@ The key motivation is to provide a centralized system for managing security patc
 This approach not only enhances the software's performance but also reduces the attack surface, making it more resilient against potential security threats. The emphasis on simplicity and minimalism contributes to easier maintenance and faster response times when addressing emerging security concerns.
 
 In summary, the motivation behind creating this self-written security patch management software lies in the pursuit of efficiency, reduced complexity, and centralized control. By offering a slim, lightweight solution with minimal dependencies, the software aims to provide a more secure and manageable approach to handling security patches across diverse systems.
+
+## Packages
+### Sources
+All sources are available within this repository. Needed files can be just copied and manually be configured to the operator's needs. Next to this, you can also use a CMake script to re-package the sources for RPM and DEB based distributions.
+Script for packaging can be found in the directory `packaging`. Packages can be created by simply running `packaging.sh`. A new directory `packages` gets created including the final artifacts.
+
+### Distribution Packages
+Packages for end-user can be found on https://cdn.gyptazy.ch/files/ for the following operating systems and architectures:
+
+| OS | Distribution | Architecture | File |
+|------|:------:|------:|------:|
+| Linux | Debian | amd64 | https://cdn.gyptazy.ch/files/amd64/debian/qualvosec/ |
+| Linux | Debian | arm64 | https://cdn.gyptazy.ch/files/amd64/debian/qualvosec/ |
+| Linux | Debian | riscv64 | https://cdn.gyptazy.ch/files/amd64/debian/qualvosec/ |
+| Linux | Ubuntu | amd64 | https://cdn.gyptazy.ch/files/amd64/ubuntu/qualvosec/ |
+| Linux | Ubuntu | arm64 | https://cdn.gyptazy.ch/files/amd64/ubuntu/qualvosec/ |
+| Linux | Ubuntu | riscv64 | https://cdn.gyptazy.ch/files/amd64/ubuntu/qualvosec/ |
+| Linux | RedHat | amd64 | https://cdn.gyptazy.ch/files/amd64/redhat/qualvosec/ |
+| Linux | RedHat | arm64 | https://cdn.gyptazy.ch/files/amd64/redhat/qualvosec/ |
+| Linux | RedHat | riscv64 | https://cdn.gyptazy.ch/files/amd64/redhat/qualvosec/ |
+| Linux | RockyLinux / CentOS | amd64 | https://cdn.gyptazy.ch/files/amd64/centos/qualvosec/ |
+| Linux | RockyLinux / CentOS | arm64 | https://cdn.gyptazy.ch/files/amd64/centos/qualvosec/ |
+| Linux | RockyLinux / CentOS | riscv64 | https://cdn.gyptazy.ch/files/amd64/centos/qualvosec/ |
+| BSD | FreeBSD | amd64 | https://cdn.gyptazy.ch/files/amd64/freebsd/qualvosec/ |
+| BSD | FreeBSD | arm64 | https://cdn.gyptazy.ch/files/amd64/freebsd/qualvosec/ |
+| BSD | FreeBSD | riscv64 | https://cdn.gyptazy.ch/files/amd64/freebsd/qualvosec/ |
 
 ## Misc
 ### Bugs

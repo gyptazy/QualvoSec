@@ -22,6 +22,7 @@
   * Parameters
   * Supported Systems
   * Dependencies
+* HowTos & References
 * Motivation
 * Packages
 * Misc
@@ -136,6 +137,7 @@ The following options can be set in the `patch.yaml` file and will be interprete
 | Sunday | 6 | 
 
 ### Admin
+TBD
 
 ## Usage
 ### Systemd
@@ -180,6 +182,14 @@ QualvoSec is fully written in Python and just needs the basic modules to run. Pl
 
 
 When running on Linux systems with `systemd` you should also make sure to have `sudo` installed and to use the sudo-droplet.
+
+## HowTos & References
+A collection of howtos and references of QualvoSec in the net.
+
+| Type | Description | Link |
+|------|:------:|:------:|
+| Announcement | Release announcement of QualvoSec | [Link](https://gyptazy.ch/blog/qualvosec-a-minimalistic-security-patch-management-tools-for-linux-and-bsd/) |
+| HowTo | Howto Install QualvoSec Security Patch Management on Debian and Ubuntu | [Link](https://gyptazy.ch/howtos/howto-install-qualvosec-security-patch-management-on-debian/) |
 
 ## Motivation
 The motivation behind developing a self-written security patch management software with a focus on minimalism and reduced dependencies stems from the need for a streamlined and efficient solution. Traditional patch management tools often come with unnecessary bloat and dependencies, leading to increased complexity and resource consumption. In response to this, the goal is to create a slim, lightweight alternative that prioritizes simplicity and effectiveness.

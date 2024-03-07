@@ -8,8 +8,7 @@
 ## Table of Content
 * General
 * Features
-* Structure
-  * General
+* General
   * Client
     * Config
     * Options
@@ -50,8 +49,7 @@
 * Support for Linux, BSD
 * Support for AMD64, ARM64 and RISC-V hardware architecture
 
-## Structure
-### General
+## General
 QualvoSec is a software designed for efficient and automated security management of remote servers. This application operates by periodically inspecting a designated remote server manifest (a static YAML file) to extract information relevant to the local system's Fully Qualified Domain Name (FQDN). The manifest contains crucial details, including the specified date for patching corresponding systems and whether a system necessitates a reboot post-patch installation.
 
 With its proactive approach, QualvoSec ensures that systems are up-to-date with the latest patches, promoting robust security measures. The software streamlines the process by matching FQDNs, allowing for targeted actions based on the unique identity of each local system. By providing clear directives on patching timelines and reboot requirements, QualvoSec enhances overall system security and stability, minimizing vulnerabilities and potential risks associated with outdated software.

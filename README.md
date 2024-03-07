@@ -6,7 +6,7 @@
 
 
 ## Table of Content
-* General
+* Introduction
 * Features
 * General
   * Client
@@ -29,7 +29,7 @@
   * Contributing
   * Author(s)
 
-## General
+## Introduction
 `QualvoSec` is a minimalistic security patch management tools (security patch framework) for unattended upgrades on Linux and BSD based systems that are obtaining their packages from a distribution based repository. It is written in Python for minimal setups where solutions like Spacewalk or Landscape would be too bloated. QualvoSec supports Debian (e.g. Ubuntu, GardenLinux, etc.) and RedHat (CentOS, Fedora, RockyLinux, etc.) based Distributions but also BSD (e.g. FreeBSD, OpenBSD, macOS, etc.).
 
 ## Features

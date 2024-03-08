@@ -105,7 +105,6 @@ def read_qualvosec_manifest(qualvosec_manifest_path):
 
 def print_table(system_overview):
     """ Print a pretty table output from a Python dict. """
-    print(system_overview)
     print('{:<40} {:<20} {:<10} {:<10} {:<10} {:<10}'.format('System (FQDN)','Last Seen','Alive', 'Reboot', 'Patch', 'Patch Date'))
     print('_' * 110)
     for system in system_overview:

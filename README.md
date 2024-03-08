@@ -144,7 +144,37 @@ The following options can be set in the `patch.yaml` file and will be interprete
 | Sunday | 6 | 
 
 ### Admin
-TBD
+QualvoSec's admin utility offers a comprehensive solution for efficient system management. Users benefit from a centralized platform that provides a quick overview of connected systems and their patch statuses. The utility facilitates seamless system management by allowing users to add or remove systems with ease. This streamlined process ensures that the organization's security infrastructure remains up-to-date and aligned with operational requirements.
+
+#### Options
+The following options can be set in the `qualvosec_admin.conf` file:
+
+| Option | Type | Description | 
+|------|:------:|:------:|
+| server | String | Defines the remote server instance hosting the manifest file. |
+| log_file_path | String | Defines path to the server's access log file. |
+
+#### Arguments
+| Args | Description | 
+|------|:------:|
+| list | Lists all systems (providing an overview) |
+| add | Adds new system and/or patch cycle |
+| remove | Removes a system and/oe patch cycle |
+
+#### Example Output List
+Attached, you can find a sample outpout of the list command, showing the system overview:
+
+```
+System (FQDN)                            Last Seen            Alive      Reboot     Patch      Patch Date
+______________________________________________________________________________________________________________
+giro48.gyptazy.ch                         never                0          0          1          Fri, 3:15 
+giro49.gyptazy.ch                         never                0          0          1          Tue, 3:15 
+giro50.gyptazy.ch                         never                0          0          1          Fri, 3:15 
+giro51.gyptazy.ch                         never                0          0          1          Tue, 3:15 
+giro52.gyptazy.ch                         never                0          0          1          Fri, 3:15 
+giro53.gyptazy.ch                         never                0          0          1          !WRONG WEEKDAY!, 1:15
+```
+
 
 ## Usage
 ### Systemd

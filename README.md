@@ -76,6 +76,7 @@ The following options can be set in the `qualvosec.conf` file:
 | server | String | Defines the remote server instance hosting the manifest file. |
 | monitoring | Bool | Defines to activate the monitoring interface. |
 | monitoring_port | Integer | Defines the port of the monitoring interface (Default: 8037). |
+| monitoring_listener | String | Defines the listener address of the monitoring interface (Default: 127.0.0.1). |
 | log_level | String | Defines the log level (Default: CRITICAL). |
 | log_handler | String | Defines the log handler (Default: SystemdHandler). |
 

@@ -1,0 +1,199 @@
+#!/usr/bin/env python3
+
+# QualvoSec-admin
+# QualvoSec is a minimalistic security patch management tool for unattended
+# upgrades on Linux and BSD based systems that are obtaining their packages
+# from a distribution based repository.
+# Copyright (C) 2023 Florian Paul Azim Hoberg @gyptazy <gyptazy@gyptazy.ch>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import argparse
+import configparser
+import datetime
+import dateutil.parser
+import sys
+import urllib
+try:
+    import yaml
+except ImportError as error:
+        print('QualvoSec: Can not start QualvoSec Admin. Missing Python module: yaml')
+        sys.exit(2)
+from urllib.request import urlretrieve
+
+
+# Constants
+__appname__ = "QualvoSec-Admin"
+__version__ = "1.0.2"
+__author__  = "Florian Paul Azim Hoberg <gyptazy@gyptazy.ch> @gyptazy"
+
+
+## Functions
+def initialize_args():
+    """ Initialize given arguments for QualvoSec. """
+    argparser = argparse.ArgumentParser(description='QualvoSec_admin')
+    argparser.add_argument('option', nargs='?', default=True, help='Use [add|remove|list] to manage client systems.')
+    argparser.add_argument('-c', '--config', type=str, help='Path to config file.')
+    return argparser.parse_args()
+
+
+def initialize_config_path(app_args):
+    """ Initialize path to config file. """
+    config_path = app_args.config
+    if app_args.config is None:
+        # Try to fallback on distribution default path.
+        config_path = '/etc/qualvosec/qualvosec_admin.conf'
+    return config_path
+
+
+def initialize_config_options(config_path):
+    """ Read configuration from given config file for QualvoSec. """
+    try:
+        config = configparser.ConfigParser()
+        config.read(config_path)
+        server = config['general']['server']
+        log_file_path = config['general']['log_file_path']
+    except configparser.NoSectionError:
+        print('Error parsing config file: Section not found.')
+        sys.exit(2)
+    except configparser.ParsingError:
+        print('Error parsing config file: Impossible to parse file.')
+        sys.exit(2)
+    except KeyError:
+        print('Error parsing config file: Key/Value not found.')
+        sys.exit(2)
+    return server, log_file_path
+
+
+def read_file(log_file_path):
+    """ Read lines of a given file. """ 
+    with open(log_file_path) as f:
+        return f.readlines()
+
+
+def fetch_qualvosec_manifest(server):
+    """ Fetch the QualvoSec manifest from the remote server. """
+    # Customize urllib opener.
+    opener = urllib.request.build_opener()
+    opener.addheaders = [('User-agent', f'{__appname__} {__version__}')]
+
+    # Grab the initial QualvoSec manifest file once.
+    try:
+        return urlretrieve(f'{server}/patch.yaml')
+    except urllib.error.URLError:
+        print(f'Error while fetching the manifest from {server}.')
+        sys.exit(2)
+
+
+def read_qualvosec_manifest(qualvosec_manifest_path):
+    """ Read the QualvoSec patch manifest. """
+    with open(qualvosec_manifest_path, 'r') as test:
+        qualvosec_manifest = yaml.safe_load(test)
+    return qualvosec_manifest
+
+
+def print_table(system_overview):
+    """ Print a pretty table output from a Python dict. """
+    print(system_overview)
+    print('{:<40} {:<20} {:<10} {:<10} {:<10} {:<10}'.format('System (FQDN)','Last Seen','Alive', 'Reboot', 'Patch', 'Patch Date'))
+    print('_' * 110)
+    for system in system_overview:
+        print("{:<40} {:<20} {:<10} {:<10} {:<10} {:<10}".format(system, system_overview[system]['last_seen'], system_overview[system]['alive'], system_overview[system]['reboot'], system_overview[system]['patch'], system_overview[system]['patch_date']))
+
+
+def get_dayname_by_int(day_as_integer):
+    """ Get a weekday name by an integer. """
+    weekdays = {0:'Mon', 1:'Tue', 2:'Wed', 3:'Thur', 4:'Fri', 5:'Sat', 6:'Sun', 7:'!WRONG WEEKDAY!'}
+    return weekdays[day_as_integer]
+
+
+def create_overview(file_content, qualvosec_manifest):
+    """ """
+    system_overview = {}
+    # Parse content from remote patch config file and
+    # create initial overview of systems that should be
+    # present for security patch management according
+    # to the given server config file.
+    for system in qualvosec_manifest:
+        system_overview[system] = {}
+        system_overview[system]['last_seen'] = 'never'
+        system_overview[system]['alive'] = False
+        system_overview[system]['reboot'] = qualvosec_manifest[system]['reboot']
+        system_overview[system]['patch'] = qualvosec_manifest[system]['patch']
+        day_name = get_dayname_by_int(qualvosec_manifest[system]['weekday'])
+        system_overview[system]['patch_date'] = f'{day_name}, {str(qualvosec_manifest[system]["hour"])}:{str(qualvosec_manifest[system]["minute"])}'
+
+    # Parse content from log file and extend/update 
+    # the overview by the given metadata from the
+    # server's log file.
+    for line in file_content:
+        last_seen = line.split(' ')[3].replace('[','').split(':')
+        system = line.split(' ')[13].replace('"\n', '')
+        if system_overview.get(system):
+            # Overwrite last seen to get latest available date
+            insertion_date = dateutil.parser.parse(last_seen[0])
+            date_today_7_days_before = datetime.datetime.today() - datetime.timedelta(days=7)
+            older_than_7_days = insertion_date < date_today_7_days_before
+
+            # Flag the system as alive
+            if older_than_7_days:
+                alive = False
+            else:
+                alive = True
+
+            # Place values in overview
+            system_overview[system]['last_seen'] = last_seen[0]
+            system_overview[system]['alive'] = alive
+
+    print_table(system_overview)
+
+
+def add_system(qualvosec_manifest):
+    """ Add new system to manifest. """
+    print('WIP: Not yet integrated.')
+
+
+def remove_system(qualvosec_manifest):
+    """ Remove system from manifest. """
+    print('WIP: Not yet integrated.')
+
+
+def main():
+    """ Run QualvoSec Admin - A minimalistic security patch management tool. """
+    app_args = initialize_args()
+    config_path = initialize_config_path(app_args)
+    server, log_file_path = initialize_config_options(config_path)
+    file_content = read_file(log_file_path) 
+    qualvosec_manifest_path = fetch_qualvosec_manifest(server)
+    qualvosec_manifest = read_qualvosec_manifest(qualvosec_manifest_path[0])
+
+    # Create list output of client systems
+    if app_args.option == 'list':
+        create_overview(file_content, qualvosec_manifest)
+
+    # Add client system
+    elif app_args.option == 'add':
+        add_system(qualvosec_manifest)
+
+    # Remove client system
+    elif app_args.option == 'remove':
+        remove_system(qualvosec_manifest)
+
+    # Print user error
+    else:
+        print('No valid option selected.')
+
+
+if __name__ == '__main__':
+    main()

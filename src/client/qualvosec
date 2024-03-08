@@ -106,10 +106,11 @@ def initialize_config_options(config_path):
         config = configparser.ConfigParser()
         config.read(config_path)
         server = config['general']['server']
-        monitoring = config['general']['monitoring']
-        monitoring_port = config['general']['monitoring_port']
-        log_level = config['general']['log_level']
-        log_handler = config['general']['log_handler']
+        monitoring = config['general'].get('monitoring', False)
+        monitoring_port = config['general'].get('monitoring_port', None)
+        monitoring_listener = config['general'].get('monitoring_listener', None)
+        log_level = config['general'].get('log_level', 'CRITICAL')
+        log_handler = config['general'].get('log_handler', 'SystemdHandler()')
     except configparser.NoSectionError:
         logging.critical('Error parsing config file: Section not found.')
         sys.exit(2)
@@ -119,7 +120,7 @@ def initialize_config_options(config_path):
     except KeyError:
         logging.critical('Error parsing config file: Key/Value not found.')
         sys.exit(2)
-    return server, log_level, log_handler, monitoring, monitoring_port
+    return server, log_level, log_handler, monitoring, monitoring_port, monitoring_listener
 
 
 def initialize_logger(log_level, log_handler):
@@ -133,7 +134,7 @@ def initialize_logger(log_level, log_handler):
 def initialize_monitoring():
     """ Initialize monitoring status endpoint. """
     logging.info(f'Info: Initializing monitoring endpoint on port tcp/{monitoring_port}.')
-    httpd = HTTPServer(('localhost', int(monitoring_port)), MonitoringHandler)
+    httpd = HTTPServer((monitoring_listener, int(monitoring_port)), MonitoringHandler)
     httpd.serve_forever()
 
 
@@ -205,7 +206,7 @@ def _get_system_os_pkg_mgr(system_fqdn):
     system_os = None
     system_os_debian  = '/bin/apt'
     system_os_redhat  = '/bin/rpm'
-    system_os_freebsd = '/bin/pkg'
+    system_os_freebsd = '/usr/sbin/pkg'
     system_os_macos   = '/opt/homebrew/bin/brew'
     supported_system_os = [system_os_debian, system_os_redhat, system_os_freebsd, system_os_macos]
 
@@ -239,6 +240,7 @@ def _execute_patch_system(system_os_pkg_mgmr, system_fqdn):
     """ Execute patching the system. """
     if system_os_pkg_mgmr == '/bin/apt':
         logging.info(f'Info: Using apt-get for patching.')
+        os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
         process = subprocess.Popen(['sudo', 'apt-get', '-y', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
 
     elif system_os_pkg_mgmr == '/bin/rpm':
@@ -247,7 +249,7 @@ def _execute_patch_system(system_os_pkg_mgmr, system_fqdn):
 
     elif system_os_pkg_mgmr == '/bin/pkg':
         logging.info(f'Info: Using pkg for patching.')
-        process = subprocess.Popen(['sudo', 'pkg', '-y', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        process = subprocess.Popen(['sudo', 'pkg', 'upgrade', '-yq'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
 
     elif system_os_pkg_mgmr == '/opt/homebrew/bin/brew':
         logging.info(f'Info: Using homebrew for patching.')
@@ -323,9 +325,10 @@ def main():
     """ Run QualvoSec - A minimalistic security patch management tool. """
     qualvosec_manifest_path = None
     global monitoring_port
+    global monitoring_listener
     app_args = initialize_args()
     config_path = initialize_config_path(app_args)
-    server, log_level, log_handler, monitoring, monitoring_port = initialize_config_options(config_path)
+    server, log_level, log_handler, monitoring, monitoring_port, monitoring_listener = initialize_config_options(config_path)
     initialize_logger(log_level, log_handler)
     if monitoring:
         threading.Thread(target=initialize_monitoring, name="monitoring").start()

@@ -1,2 +1,8 @@
-* Fri Mar 08 2024 Florian Paul Azim Hoberg <gyptazy@gyptazy.ch>
-- Initial release of QualvoSec-Admin.
+* Wed Mar 07 2024 Florian Paul Azim Hoberg <gyptazy@gyptazy.ch>
+- * Added custom user agent including FQDN of the client system.
+
+* Wed Mar 06 2024 Florian Paul Azim Hoberg <gyptazy@gyptazy.ch>
+- Added http health endpoint as a monitoring interface.
+
+* Wed Mar 06 2024 Florian Paul Azim Hoberg <gyptazy@gyptazy.ch>
+- Initial release of QualvoSec.

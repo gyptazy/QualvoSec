@@ -55,6 +55,12 @@ QualvoSec is a software designed for efficient and automated security management
 
 With its proactive approach, QualvoSec ensures that systems are up-to-date with the latest patches, promoting robust security measures. The software streamlines the process by matching FQDNs, allowing for targeted actions based on the unique identity of each local system. By providing clear directives on patching timelines and reboot requirements, QualvoSec enhances overall system security and stability, minimizing vulnerabilities and potential risks associated with outdated software.
 
+### Communication
+![right:40% 80%](https://cdn.gyptazy.ch/images/QualvoSec-topology.jpg)
+
+### Flowchart
+![width:22cm height:13cm](https://cdn.gyptazy.ch/images/QualvoSec-flowchart.png)
+
 ### Client
 The client is required to gather additional information from a configuration file, which should include the specified details. By default, the client will search for a configuration file in /etc/qualvosec/qualvosec.conf. However, users have the flexibility to define a custom path for the configuration file by utilizing the -c argument with the client (refer to the usage chapter for more details).
 

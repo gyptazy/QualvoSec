@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(QualvoSec-Admin VERSION 1.0.2)
 
-install(PROGRAMS ../../src/admin/qualvosec DESTINATION /sbin)
-install(FILES ../../src/client/qualvosec_admin.conf DESTINATION /etc/qualvosec)
+install(PROGRAMS ../../src/admin/qualvosec_admin DESTINATION /sbin)
+install(FILES ../../src/admin/qualvosec_admin.conf DESTINATION /etc/qualvosec)
 
 # General
 set(CPACK_PACKAGE_NAME "qualvosec_admin")

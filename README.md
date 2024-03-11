@@ -111,6 +111,9 @@ hypervisor01.gyptazy.ch:
   weekday: 1
   hour: 23
   minute: 30
+  packages:
+    - nginx
+    - tzdata
 hypervisor02.gyptazy.ch:
   patch: true
   reboot: true
@@ -119,7 +122,7 @@ hypervisor02.gyptazy.ch:
   minute: 15
 ```
 
-This example provides patch information for two systems where the key is equal to the client system that should be patched. In this example, the system with the fqdn `hypervisor01.gyptazy.ch` should be patched and also be rebooted in general. The patches should be integrated every Tuesday (1) at 11:30 PM.
+This example provides patch information for two systems where the key is equal to the client system that should be patched. In this example, the system with the fqdn `hypervisor01.gyptazy.ch` should be patched and also be rebooted in general. The patches should be integrated every Tuesday (1) at 11:30 PM. Given by the key `packages` (type: list), only the defined packages (whitelist) will be upgraded.
 
 #### Options
 The following options can be set in the `patch.yaml` file and will be interpreted by the corresponding client.
@@ -131,6 +134,7 @@ The following options can be set in the `patch.yaml` file and will be interprete
 | weekday | Integer | Defines the weekday (starting on Mondays with 0). |
 | hour | Integer | Defines the hour to start the patching (to be defined in 24 hours syntax). |
 | minute | Integer | Defines the minute to start the patching. |
+| packages | List | Defines specific packages to update (Default: all) |
 
 #### Weekday Definitions
 | Weekday | Config (Integer) | 

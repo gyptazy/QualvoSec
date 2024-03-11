@@ -236,24 +236,27 @@ def _validate_systems_patch_window(qualvosec_times, system_fqdn):
     return execute_patching
 
 
-def _execute_patch_system(system_os_pkg_mgmr, system_fqdn):
+def _execute_patch_system(system_os_pkg_mgmr, system_fqdn, system_packages_upgrade):
     """ Execute patching the system. """
     if system_os_pkg_mgmr == '/bin/apt':
         logging.info(f'Info: Using apt-get for patching.')
         os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
-        process = subprocess.Popen(['sudo', 'apt-get', '-y', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        if system_packages_upgrade:
+            process = subprocess.Popen(['sudo', 'apt-get', '-y', 'install', system_packages_upgrade], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        else:
+            process = subprocess.Popen(['sudo', 'apt-get', '-y', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
 
     elif system_os_pkg_mgmr == '/bin/rpm':
         logging.info(f'Info: Using yum for patching.')
-        process = subprocess.Popen(['sudo', 'yum', '-y', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        process = subprocess.Popen(['sudo', 'yum', '-y', 'upgrade', system_packages_upgrade], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
 
     elif system_os_pkg_mgmr == '/bin/pkg':
         logging.info(f'Info: Using pkg for patching.')
-        process = subprocess.Popen(['sudo', 'pkg', 'upgrade', '-yq'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        process = subprocess.Popen(['sudo', 'pkg', 'upgrade', '-yq', system_packages_upgrade], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
 
     elif system_os_pkg_mgmr == '/opt/homebrew/bin/brew':
         logging.info(f'Info: Using homebrew for patching.')
-        process = subprocess.Popen(['sudo', 'brew', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        process = subprocess.Popen(['sudo', 'brew', 'upgrade', system_packages_upgrade], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
 
     process_output, process_error = process.communicate()
     exit_code = process.wait()
@@ -268,9 +271,28 @@ def _execute_patch_system(system_os_pkg_mgmr, system_fqdn):
 
 
 def _validate_system_reboot(system_fqdn, qualvosec_manifest):
-    """ Validate is system should be rebooted after security patching by QualvoSec. """
+    """ Validate if system should be rebooted after security patching by QualvoSec. """
+    logging.info(f'Info: Validating for reboot of system {system_fqdn}.')
     if qualvosec_manifest[system_fqdn].get('reboot'):
+        logging.info(f'Info: System {system_fqdn} will be rebooted.')
         return True
+    else:
+        logging.info(f'Info: System {system_fqdn} will not be rebooted.')
+        return False
+
+
+def _validate_system_packages(system_fqdn, qualvosec_manifest):
+    """ Validate if only selected packages should be upgraded by QualvoSec. """
+    logging.info(f'Info: Validating for specific packages to upgrade on system {system_fqdn}.')
+    packages = qualvosec_manifest[system_fqdn].get('packages', False)
+
+    # Check if (a) specific package(s) are defined.
+    if packages:
+        logging.info(f'Info: System {system_fqdn} will only upgrade the the following packages: {" ".join(packages)}')
+        return " ".join(packages)
+    else:
+        logging.info(f'Info: System {system_fqdn} will upgrade all available packages.')
+        return False
 
 
 def _execute_reboot_system(system_fqdn):
@@ -312,10 +334,13 @@ def patch_system(system_fqdn, qualvosec_manifest):
     execute_patching = _validate_systems_patch_window(qualvosec_times, system_fqdn)
     logging.info(f'Info: The system {system_fqdn} is in state execute_patching: {execute_patching}')
 
+    # Check for specific packages to upgrade.
+    system_packages_upgrade = _validate_system_packages(system_fqdn, qualvosec_manifest)
+
     # Execute patching.
     if execute_patching:
         system_os_pkg_mgmr = _get_system_os_pkg_mgr(system_fqdn)
-        _execute_patch_system(system_os_pkg_mgmr, system_fqdn)
+        _execute_patch_system(system_os_pkg_mgmr, system_fqdn, system_packages_upgrade)
         system_reboot_state = _validate_system_reboot(system_fqdn, qualvosec_manifest)
         if system_reboot_state:
             _execute_reboot_system(system_fqdn)

@@ -4,15 +4,23 @@ hypervisor01.gyptazy.ch:
   weekday: 1
   hour: 23
   minute: 30
-  packages:
+  packages_whitelist
     - nginx
     - tzdata
+  packages_blacklist:
+    - vim
+  group_membership:
+    - gyptazy_prod
 # hypervisor02.gyptazy.ch:    # Defines the remote FQDN of the client system.
 #  patch: true                # Defines to patch the system in general.
 #  reboot: true               # Defines to reboot the system after installing the updates.
 #  weekday: 2                 # Weekday where the patches should be installed (Starting with 0 for Monday).
 #  hour: 3                    # Hours where the patches should be installed.
 #  minute: 15                 # Minute where the patches should be installed.
-#  packages:                  # Optional: Defines to update only specific packages (pkg given as list)
-#    - nginx                  # Optional: Upgrades nginx package
-#    - tzdata                 # Optional: Upgrades tzdata package
+#  packages_whitelist:        # Optional: Defines to update only specific packages (pkg given as list).
+#    - nginx                  # Optional: Upgrades nginx package.
+#    - tzdata                 # Optional: Upgrades tzdata package.
+#  packages_blacklist:        # Optional: Defines packages to exclude from upgrades.
+#    - vim                    # Optional: Excludes vim from being updates.
+#  group_membership:          # Optional: Group membership (e.g. project-, customer-, patch cycle based)
+#    - gyptazy_prod           # Optional: Name of the group (multiple elements possible)

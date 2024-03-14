@@ -19,11 +19,26 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+try:
+    import apt
+    api_apt = True
+except ImportError as error:
+        api_apt = False
 import argparse
 import configparser
 import datetime
 import logging
 import os
+try:
+    import pkg
+    api_pkg = True
+except ImportError as error:
+        api_pkg = False
+try:
+    import rpm
+    api_rpm = True
+except ImportError as error:
+        api_rpm = False
 import socket
 import subprocess
 import sys
@@ -74,13 +89,92 @@ class SystemdHandler(logging.Handler):
         except Exception:
             self.handleError(record)
 
+
 # Monitoring class
 class MonitoringHandler(BaseHTTPRequestHandler):
     """ Class to respond for monitoring requests on QualvoSec. """
     def do_GET(self):
         self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.send_header(__appname__, __version__)
         self.end_headers()
-        self.wfile.write(b'healthy=true')
+
+        if self.path == '/health':
+            http_content = self._get_http_health()
+            self.wfile.write(f'healthy: {http_content}'.encode('utf-8'))
+
+        elif self.path == '/get_package_list':
+            system_os_pkg_mgr = _get_system_os_pkg_mgr('api')
+
+            # Create package list for Debian based systems
+            if system_os_pkg_mgr == '/bin/apt':
+                if api_apt:
+                    http_content = self._get_package_list_debian()
+                    self.wfile.write(f'{http_content}'.encode('utf-8'))
+                else:
+                    self.wfile.write(f'Error: Missing Python library "apt".'.encode('utf-8'))
+
+            # Create package list for RedHat based systems
+            elif system_os_pkg_mgr == '/bin/rpm':
+                if api_rpm:
+                    http_content = self._get_package_list_redhat()
+                    self.wfile.write(f'{http_content}'.encode('utf-8'))
+                else:
+                    self.wfile.write(f'Error: Missing Python library "rpm".'.encode('utf-8'))
+
+            # Create package list for FreeBSD systems
+            elif system_os_pkg_mgr == '/bin/pkg':
+                if api_pkg:
+                    http_content = self._get_package_list_freebsd()
+                    self.wfile.write(f'{http_content}'.encode('utf-8'))
+                else:
+                    self.wfile.write(f'Error: Missing Python library "pkg".'.encode('utf-8'))
+
+            # Return error is we cannot support the OS and therefore are unable to obtain a pkg list.
+            else:
+                self.wfile.write(f'Error: No supported OS found to provide package list.'.encode('utf-8'))
+
+        # Return error message on unknown endpoints.
+        else:
+            self.wfile.write(f'Error: Not a supported endpoint requested.'.encode('utf-8'))
+
+
+    def _get_http_health(self):
+        """ Evaluate QualvoSec's current health status. """
+        health_status = True
+        return health_status
+
+    def _get_package_list_debian(self):
+        """ Get the systems local package list on a Debian based system. """
+        cache = apt.Cache()
+        installed_packages = {}
+        for pkg in cache:
+            if cache[pkg].is_installed:
+                installed_packages[pkg.name] = pkg.installed.version
+        return installed_packages
+
+    def _get_package_list_redhat(self):
+        """ Get the systems local package list on a RedHat based system. """
+        ts = rpm.TransactionSet()
+        mi = ts.dbMatch()
+        installed_packages = {}
+        for h in mi:
+            name = h['name']
+            version = h['version']
+            release = h['release']
+            epoch = h['epoch']
+            pkg_version = f"{epoch}:{version}-{release}"
+            installed_packages[name] = pkg_version
+        return installed_packages
+
+    def _get_package_list_freebsd(self):
+        """ Get the systems local package list on a FreeBSD system. """
+        installed_packages = {}
+        db = pkg.PkgDb()
+        for pkg_name in db:
+            pkg_info = db[pkg_name]
+            installed_packages[pkg_name] = pkg_info.version
+        return installed_packages
 
 
 ## Functions
@@ -107,8 +201,8 @@ def initialize_config_options(config_path):
         config.read(config_path)
         server = config['general']['server']
         monitoring = config['general'].get('monitoring', False)
-        monitoring_port = config['general'].get('monitoring_port', None)
-        monitoring_listener = config['general'].get('monitoring_listener', None)
+        monitoring_port = config['general'].get('monitoring_port', 8037)
+        monitoring_listener = config['general'].get('monitoring_listener', '127.0.0.1')
         log_level = config['general'].get('log_level', 'CRITICAL')
         log_handler = config['general'].get('log_handler', 'SystemdHandler()')
     except configparser.NoSectionError:
@@ -207,8 +301,7 @@ def _get_system_os_pkg_mgr(system_fqdn):
     system_os_debian  = '/bin/apt'
     system_os_redhat  = '/bin/rpm'
     system_os_freebsd = '/usr/sbin/pkg'
-    system_os_macos   = '/opt/homebrew/bin/brew'
-    supported_system_os = [system_os_debian, system_os_redhat, system_os_freebsd, system_os_macos]
+    supported_system_os = [system_os_debian, system_os_redhat, system_os_freebsd]
 
     for supported_os in supported_system_os:
         if os.path.exists(supported_os):
@@ -236,27 +329,29 @@ def _validate_systems_patch_window(qualvosec_times, system_fqdn):
     return execute_patching
 
 
-def _execute_patch_system(system_os_pkg_mgmr, system_fqdn, system_packages_upgrade):
+def _execute_patch_system(system_os_pkg_mgmr, system_fqdn, system_packages_whitelist, system_packages_blacklist):
     """ Execute patching the system. """
     if system_os_pkg_mgmr == '/bin/apt':
         logging.info(f'Info: Using apt-get for patching.')
         os.environ['DEBIAN_FRONTEND'] = 'noninteractive'
-        if system_packages_upgrade:
-            process = subprocess.Popen(['sudo', 'apt-get', '-y', 'install', system_packages_upgrade], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+
+        # Hold packages back from being upgraded if requested.
+        if system_packages_blacklist:
+            _execute_package_blacklisting(system_os_pkg_mgmr, system_fqdn, system_packages_blacklist)
+
+        # Upgrade only specific packages if requested or upgrade all available ones.
+        if system_packages_whitelist:
+            process = subprocess.Popen(['sudo', 'apt-get', '-y', 'install', system_packages_whitelist], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
         else:
             process = subprocess.Popen(['sudo', 'apt-get', '-y', 'upgrade'], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
 
     elif system_os_pkg_mgmr == '/bin/rpm':
         logging.info(f'Info: Using yum for patching.')
-        process = subprocess.Popen(['sudo', 'yum', '-y', 'upgrade', system_packages_upgrade], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        process = subprocess.Popen(['sudo', 'yum', '-y', 'upgrade', system_packages_whitelist], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
 
     elif system_os_pkg_mgmr == '/bin/pkg':
         logging.info(f'Info: Using pkg for patching.')
-        process = subprocess.Popen(['sudo', 'pkg', 'upgrade', '-yq', system_packages_upgrade], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-
-    elif system_os_pkg_mgmr == '/opt/homebrew/bin/brew':
-        logging.info(f'Info: Using homebrew for patching.')
-        process = subprocess.Popen(['sudo', 'brew', 'upgrade', system_packages_upgrade], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        process = subprocess.Popen(['sudo', 'pkg', 'upgrade', '-yq', system_packages_whitelist], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
 
     process_output, process_error = process.communicate()
     exit_code = process.wait()
@@ -281,17 +376,31 @@ def _validate_system_reboot(system_fqdn, qualvosec_manifest):
         return False
 
 
-def _validate_system_packages(system_fqdn, qualvosec_manifest):
-    """ Validate if only selected packages should be upgraded by QualvoSec. """
-    logging.info(f'Info: Validating for specific packages to upgrade on system {system_fqdn}.')
-    packages = qualvosec_manifest[system_fqdn].get('packages', False)
+def _get_system_packages_whitelist(system_fqdn, qualvosec_manifest):
+    """ Get a list of packages that should only be updated by QualvoSec. """
+    logging.info(f'Info: Validating for specific packages to update on system {system_fqdn}.')
+    packages = qualvosec_manifest[system_fqdn].get('packages_whitelist', False)
 
     # Check if (a) specific package(s) are defined.
     if packages:
-        logging.info(f'Info: System {system_fqdn} will only upgrade the the following packages: {" ".join(packages)}')
+        logging.info(f'Info: System {system_fqdn} will only update the the following packages: {" ".join(packages)}')
         return " ".join(packages)
     else:
-        logging.info(f'Info: System {system_fqdn} will upgrade all available packages.')
+        logging.info(f'Info: System {system_fqdn} will update all available packages.')
+        return False
+
+
+def _get_system_packages_blacklist(system_fqdn, qualvosec_manifest):
+    """ Get a list of packages that should be excluded from being updated by QualvoSec. """
+    logging.info(f'Info: Validating for specific packages to exclude from being updated on system {system_fqdn}.')
+    packages = qualvosec_manifest[system_fqdn].get('packages_blacklist', False)
+
+    # Check if (a) specific package(s) are defined.
+    if packages:
+        logging.info(f'Info: System {system_fqdn} will not upgrade the the following packages: {" ".join(packages)}')
+        return " ".join(packages)
+    else:
+        logging.info(f'Info: No packages found to exclude from being upgraded.')
         return False
 
 
@@ -307,6 +416,33 @@ def _execute_reboot_system(system_fqdn):
     else:
         logging.critical(f'Info: The system {system_fqdn} will be rebooted now.')
         logging.info(f'Log: {process_output}')
+
+
+def _execute_package_blacklisting(system_os_pkg_mgmr, system_fqdn, system_packages_blacklist):
+    """ Block packages from being upgraded in a distro specific way. """
+    if system_os_pkg_mgmr == '/bin/apt':
+        logging.info(f'Info: Using Debian specific way to hold packages back from being updated on system {system_fqdn}.')
+        process = subprocess.Popen(['sudo', 'apt-mark', 'hold', system_packages_blacklist], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+
+    elif system_os_pkg_mgmr == '/bin/rpm':
+        logging.info(f'Info: Using RedHat specific way to hold packages back from being updated on system {system_fqdn}.')
+        process = subprocess.Popen(['sudo', 'yum', 'versionlock', 'add', system_packages_blacklist], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+
+    elif system_os_pkg_mgmr == '/bin/pkg':
+        logging.info(f'Info: Using FreeBSD specific way to hold packages back from being updated on system {system_fqdn}.')
+        process = subprocess.Popen(['sudo', 'pkg', 'lock', system_packages_blacklist], stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+
+    process_output, process_error = process.communicate()
+    exit_code = process.wait()
+
+    if exit_code != 0:
+        logging.critical(f'Error: System {system_fqdn} could not hold back the following packages from being update: {system_packages_blacklist}')
+        logging.critical(f'Log: {process_error}')
+        sys.exit(2)
+    else:
+        logging.critical(f'Info: System {system_fqdn} holds back the following packages from being update: {system_packages_blacklist}')
+        logging.info(f'Log: {process_output}')
+
 
 
 def patch_system(system_fqdn, qualvosec_manifest):
@@ -334,13 +470,14 @@ def patch_system(system_fqdn, qualvosec_manifest):
     execute_patching = _validate_systems_patch_window(qualvosec_times, system_fqdn)
     logging.info(f'Info: The system {system_fqdn} is in state execute_patching: {execute_patching}')
 
-    # Check for specific packages to upgrade.
-    system_packages_upgrade = _validate_system_packages(system_fqdn, qualvosec_manifest)
+    # Check for specific packages to upgrade or to exclude from being upgraded.
+    system_packages_whitelist = _get_system_packages_whitelist(system_fqdn, qualvosec_manifest)
+    system_packages_blacklist = _get_system_packages_blacklist(system_fqdn, qualvosec_manifest)
 
     # Execute patching.
     if execute_patching:
         system_os_pkg_mgmr = _get_system_os_pkg_mgr(system_fqdn)
-        _execute_patch_system(system_os_pkg_mgmr, system_fqdn, system_packages_upgrade)
+        _execute_patch_system(system_os_pkg_mgmr, system_fqdn, system_packages_whitelist, system_packages_blacklist)
         system_reboot_state = _validate_system_reboot(system_fqdn, qualvosec_manifest)
         if system_reboot_state:
             _execute_reboot_system(system_fqdn)

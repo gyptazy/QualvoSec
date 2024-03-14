@@ -93,7 +93,7 @@ any http conform client (e.g. GypMon, Icinga2, etc.).
 Example:
 
 ```
-$> curl localhost:8037
+$> curl localhost:8037/health
 healthy=true
 ```
 
@@ -111,15 +111,20 @@ hypervisor01.gyptazy.ch:
   weekday: 1
   hour: 23
   minute: 30
-  packages:
+  packages_whitelist:
     - nginx
     - tzdata
+  packages_whitelisted:
+    - vim
 hypervisor02.gyptazy.ch:
   patch: true
   reboot: true
   weekday: 2
   hour: 3
   minute: 15
+group_membership:
+  - gyptazy_prod
+  - patch_cycle_monday
 ```
 
 This example provides patch information for two systems where the key is equal to the client system that should be patched. In this example, the system with the fqdn `hypervisor01.gyptazy.ch` should be patched and also be rebooted in general. The patches should be integrated every Tuesday (1) at 11:30 PM. Given by the key `packages` (type: list), only the defined packages (whitelist) will be upgraded.
@@ -134,7 +139,9 @@ The following options can be set in the `patch.yaml` file and will be interprete
 | weekday | Integer | Defines the weekday (starting on Mondays with 0). |
 | hour | Integer | Defines the hour to start the patching (to be defined in 24 hours syntax). |
 | minute | Integer | Defines the minute to start the patching. |
-| packages | List | Defines specific packages to update (Default: all) |
+| packages_whitelist | List | Defines specific packages to only update (Default: all) |
+| packages_blacklist | List | Defines specific packages to exclude from being updated (Default: none) |
+| group_membership | List | Defines a list of group memberships (e.g. customer, project, patch-cycles, etc.) (Default: none) |
 
 #### Weekday Definitions
 | Weekday | Config (Integer) | 

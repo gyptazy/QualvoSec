@@ -1,0 +1,5 @@
+qualvosec (0.0.9) unstable; urgency=low
+
+  * Initial beta version of QualvoSec server.
+
+ -- Florian Paul Azim Hoberg <gyptazy@gyptazy.ch>  Sat, 16 Mar 2024 05:38:41 -0200

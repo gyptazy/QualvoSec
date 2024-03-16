@@ -1,0 +1,167 @@
+#!/usr/bin/env python3
+
+# QualvoSec Server
+# QualvoSec is a minimalistic security patch management tool for unattended
+# upgrades on Linux and BSD based systems that are obtaining their packages
+# from a distribution based repository.
+# Copyright (C) 2023 Florian Paul Azim Hoberg @gyptazy <gyptazy@gyptazy.ch>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import argparse
+import configparser
+import logging
+try:
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+except ImportError as error:
+    logging.critical('QualvoSec: Can not start monitoring endpoint. Missing Python module: http')
+    sys.exit(2)
+import os
+import shutil
+import sys
+try:
+    import yaml
+except ImportError as error:
+        logging.critical('QualvoSec: Can not start QualvoSec. Missing Python module: yaml')
+        sys.exit(2)
+
+
+# Constants
+__appname__ = "QualvoSec Server"
+__version__ = "0.0.9"
+__author__  = "Florian Paul Azim Hoberg <gyptazy@gyptazy.ch> @gyptazy"
+
+
+## Classes
+# Logging class
+class SystemdHandler(logging.Handler):
+    """ Class to handle logging options. """
+    PREFIX = {
+        logging.CRITICAL: "<2> " + __appname__ + ": ",
+        logging.ERROR: "<3> " + __appname__ + ": ",
+        logging.WARNING: "<4> " + __appname__ + ": ",
+        logging.INFO: "<6> " + __appname__ + ": ",
+        logging.DEBUG: "<7> " + __appname__ + ": ",
+        logging.NOTSET: "<7 " + __appname__ + ": ",
+    }
+
+    def __init__(self, stream=sys.stdout):
+        self.stream = stream
+        logging.Handler.__init__(self)
+
+    def emit(self, record):
+        try:
+            msg = self.PREFIX[record.levelno] + self.format(record) + "\n"
+            self.stream.write(msg)
+            self.stream.flush()
+        except Exception:
+            self.handleError(record)
+
+# Webserver Class
+class WebserverHandler(BaseHTTPRequestHandler):
+    """ Class of QualvoSec's webserver. """
+    def do_GET(self):
+        if self.path == '/health':
+            self._get_http_health()
+
+        if self.path == '/patch.yaml':
+            self._get_patch_manifest()
+
+    def _get_http_health(self):
+        """ Evaluate QualvoSec's server current health status. """
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.send_header(__appname__, __version__)
+        self.end_headers()
+        health_status = True
+        self.wfile.write(f'healthy: {health_status}'.encode('utf-8'))
+
+    def _get_patch_manifest(self, manifest='patch.yaml'):
+        """ Return QualvoSec's patch manifest """
+        with open(manifest, 'rb') as f:
+            self.send_response(200)
+            self.send_header(__appname__, __version__)
+            self.send_header("Content-Type", 'application/octet-stream')
+            self.send_header("Content-Disposition", 'attachment; filename="{}"'.format(os.path.basename(manifest)))
+            fs = os.fstat(f.fileno())
+            self.send_header("Content-Length", str(fs.st_size))
+            self.end_headers()
+            shutil.copyfileobj(f, self.wfile)
+
+
+## Fuctions
+def initialize_args():
+    """ Initialize given arguments for QualvoSec. """
+    argparser = argparse.ArgumentParser(description='QualvoSec')
+    argparser.add_argument('-c', '--config', type=str, help='Path to config file.')
+    return argparser.parse_args()
+
+
+def initialize_config_path(app_args):
+    """ Initialize path to config file. """
+    config_path = app_args.config
+    if app_args.config is None:
+        # Try to fallback on distribution default path.
+        config_path = '/etc/qualvosec/qualvosec_server.conf'
+    return config_path
+
+def initialize_config_options(config_path):
+    """ Read configuration from given config file for QualvoSec. """
+    try:
+        config = configparser.ConfigParser()
+        config.read(config_path)
+        listener = config['general'].get('listener', '127.0.0.1')
+        port = config['general'].get('port', 8037)
+        log_level = config['general'].get('log_level', 'CRITICAL')
+        log_handler = config['general'].get('log_handler', 'SystemdHandler()')
+    except configparser.NoSectionError:
+        logging.critical('Error parsing config file: Section not found.')
+        sys.exit(2)
+    except configparser.ParsingError:
+        logging.critical('Error parsing config file: Impossible to parse file.')
+        sys.exit(2)
+    except KeyError:
+        logging.critical('Error parsing config file: Key/Value not found.')
+        sys.exit(2)
+    return listener, port, log_level, log_handler
+
+
+def initialize_logger(log_level='CRITICAL', log_handler=('SystemdHandler()')):
+    """ Initialize desired logging handler. """
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
+    root_logger.addHandler(SystemdHandler())
+    logging.info(f'Info: Logger initialized.')
+
+
+def run_http_server(listener='127.0.0.1', port=8037):
+    """ Initialize QualvoSec's webserver. """
+    logging.info(f'Info: Initializing QualvoSec server on port tcp/{port}.')
+    httpd = HTTPServer((listener, int(port)), WebserverHandler)
+    httpd.serve_forever()
+
+
+def main():
+    """ Run QualvoSec - A minimalistic security patch management tool. """
+    global port
+    global listener
+    app_args = initialize_args()
+    config_path = initialize_config_path(app_args)
+    listener, port, log_level, log_handler = initialize_config_options(config_path)
+    initialize_logger(log_level, log_handler)
+    run_http_server()
+
+
+if __name__ == "__main__":
+    main()

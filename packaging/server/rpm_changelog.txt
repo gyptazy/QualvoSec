@@ -1,0 +1,2 @@
+* Wed Mar 16 2024 Florian Paul Azim Hoberg <gyptazy@gyptazy.ch>
+- * Initial beta version of QualvoSec server.

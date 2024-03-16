@@ -1,0 +1,6 @@
+[Unit]
+Description=QualvoSec Server Service
+
+[Service]
+ExecStart=/usr/sbin/qualvosec_server -c /etc/qualvosec/qualvosec_server.conf
+User=qualvosec

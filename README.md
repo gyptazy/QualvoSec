@@ -1,5 +1,5 @@
 # QualvoSec
-<img align="left" src="https://cdn.gyptazy.ch/images/QualvoSec-Security-Patch-Framework.jpg"/>
+<img align="left" src="https://cdn.gyptazy.com/images/QualvoSec-Security-Patch-Framework.jpg"/>
 <br>
 
 <p float="center"><img src="https://img.shields.io/github/license/gyptazy/QualvoSec"/><img src="https://img.shields.io/github/contributors/gyptazy/QualvoSec"/><img src="https://img.shields.io/github/last-commit/gyptazy/QualvoSec/main"/><img src="https://img.shields.io/github/issues-raw/gyptazy/QualvoSec"/><img src="https://img.shields.io/github/issues-pr/gyptazy/QualvoSec"/></p>
